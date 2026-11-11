@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ISA Lab · Addressing Modes, Stack &amp; Subroutines</title>
+<style>
+:root{
+--ink:#0f172a;--ink2:#334155;--mut:#64748b;--line:#e2e8f0;--line2:#cbd5e1;--paper:#f8fafc;--panel:#ffffff;
+--acc:#4338ca;--acc2:#eef2ff;--acc3:#c7d2fe;--amber:#b45309;--amberbg:#fef3c7;--green:#047857;--greenbg:#d1fae5;--red:#b91c1c;--redbg:#fee2e2;
+--head:#0b1220;--mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+--sans:"Inter","Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font:14px/1.55 var(--sans);display:flex;flex-direction:column;min-height:100vh;padding-bottom:env(safe-area-inset-bottom,0)}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+
+/* app bar */
+.appbar{background:var(--head);color:#e2e8f0;display:flex;align-items:center;gap:14px;padding:10px 20px;padding-top:calc(10px + env(safe-area-inset-top,0px))}
+.logo{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#6366f1,#4338ca);display:grid;place-items:center;font:700 12px var(--mono);color:#fff;flex:none}
+.appbar h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.01em}
+.appbar .crumb{font-size:12px;color:#94a3b8}
+.appbar .sp{flex:1}
+.kbd{font:11px var(--mono);color:#94a3b8;border:1px solid #334155;border-radius:4px;padding:1px 5px;margin-left:4px}
+.hidesm{display:inline}
+
+/* layout */
+.app{flex:1;display:grid;grid-template-columns:260px 1fr;min-height:0}
+aside{border-right:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:14px 10px 90px}
+.grp{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);padding:14px 10px 6px}
+.op{display:block;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:6px;cursor:pointer;border-left:3px solid transparent}
+.op:hover{background:var(--paper)}
+.op b{display:block;font-weight:500;font-size:13.5px}
+.op code{font:12px var(--mono);color:var(--mut)}
+.op[aria-current="true"]{background:var(--acc2);border-left-color:var(--acc)}
+.op[aria-current="true"] b{color:var(--acc);font-weight:600}
+.msel{display:none}
+.work{padding:20px 24px 110px;min-width:0}
+
+/* header of workspace */
+.wh{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.wh h2{font-size:22px;margin:0;letter-spacing:-.01em}
+.wh p{margin:4px 0 0;color:var(--ink2);max-width:70ch}
+.formula{font:600 13px var(--mono);background:var(--acc2);color:var(--acc);border:1px solid var(--acc3);border-radius:6px;padding:6px 10px;white-space:nowrap}
+
+/* inputs */
+.inputs{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld[hidden]{display:none}
+.fld span{font-size:11.5px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+.fld input{width:110px;border:1px solid var(--line2);border-radius:6px;padding:7px 9px;background:var(--paper);font-family:var(--mono)}
+.fld input:focus{border-color:var(--acc);background:#fff}
+.btn{border:1px solid var(--line2);background:#fff;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}
+.btn:hover{border-color:var(--ink2)}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.pri:hover{background:#3730a3}
+.btn.ghost{border-color:transparent;background:none;color:var(--acc)}
+.inputs .sp{flex:1}
+.memedit{flex-basis:100%;display:none;gap:8px;align-items:center}
+.memedit.on{display:flex}
+.memedit input{flex:1;font:13px var(--mono);border:1px solid var(--line2);border-radius:6px;padding:7px 9px;background:var(--paper)}
+.err{flex-basis:100%;color:var(--red);font-size:13px;margin:0;display:none}
+.err.on{display:block}
+
+/* main split */
+.split{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;margin-top:18px}
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.ph{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--mut)}
+.ph em{font-style:normal;text-transform:none;letter-spacing:0;font-weight:500}
+.pb{padding:12px 14px}
+.stack>.pane+.pane{margin-top:18px}
+.idle{color:var(--mut);padding:28px 14px;text-align:center}
+
+/* code listing */
+.code{font:13px/1.9 var(--mono);background:#0b1220;color:#cbd5e1;border-radius:0}
+.cl{display:grid;grid-template-columns:22px 46px 82px 1fr;padding:0 14px 0 6px;border-left:3px solid transparent;transition:background .25s}
+.cl .ar{color:#fbbf24;text-align:center}
+.cl .ad{color:#64748b}
+.cl .lb{color:#a5b4fc}
+.cl.cur{background:#1e293b;border-left-color:#fbbf24;color:#fff}
+.cl.dn{color:#94a3b8}
+
+/* registers */
+table{border-collapse:collapse;width:100%}
+.rt td,.rt th{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left}
+.rt th{font-size:11px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;background:var(--paper)}
+.rt tr:last-child td{border-bottom:0}
+.rn{font:600 13px var(--mono)}
+.rv{font:600 15px var(--mono);text-align:right!important;width:90px}
+.rh{font:12px var(--mono);color:var(--mut);text-align:right!important;width:80px}
+.rr{color:var(--mut);font-size:12.5px}
+.rt tr{transition:background .3s}
+.rt tr.hl{background:var(--amberbg)}
+.rt tr.hl .rn{color:var(--amber)}
+.rt tr.chg .rv{animation:flash 1s}
+@keyframes flash{0%{color:var(--acc);background:var(--acc2)}100%{}}
+.nil{color:var(--line2)}
+
+/* memory map */
+.mm{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
+.mr{display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px dashed var(--line);font-family:var(--mono);font-size:13px;transition:background .3s}
+.mr .ma{color:var(--mut);font-size:12px}
+.mr .mv{font-weight:600;text-align:right}
+.mr.stk{background:#f0fdfa}
+.mr.stk .ma{color:var(--green)}
+.mr.hl{background:var(--amberbg)}
+.mr.chg .mv{animation:flash 1s}
+.pt{font:600 10px var(--sans);border-radius:3px;padding:1px 5px;color:#fff;background:var(--acc);margin-left:3px}
+.pt.sp{background:var(--green)}
+.pt.ea{background:var(--amber)}
+.mleg{display:flex;gap:14px;font-size:12px;color:var(--mut);padding:8px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
+.mleg i{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:5px}
+
+/* inspector */
+.stepno{font:600 12px var(--mono);color:var(--acc)}
+.sttl{font-size:18px;font-weight:650;margin:2px 0 8px}
+.narr{color:var(--ink2);font-size:14.5px}
+.narr b{color:var(--ink)}
+.narr.w{color:var(--red)}
+.calc{margin-top:14px;display:flex;align-items:stretch;flex-wrap:wrap;gap:8px;font-family:var(--mono)}
+.tm{border:1px solid var(--line2);border-radius:8px;padding:6px 12px;min-width:64px;text-align:center;background:var(--paper)}
+.tm small{display:block;font-size:11px;color:var(--mut)}
+.tm b{font-size:17px}
+.tm.res{border-color:var(--acc);background:var(--acc2)}
+.tm.res b{color:var(--acc)}
+.opx{align-self:center;font-size:18px;color:var(--mut)}
+.result{margin-top:16px;border-radius:8px;padding:12px 14px;background:var(--greenbg);border:1px solid #6ee7b7;display:none}
+.result.on{display:block}
+.result.bad{background:var(--redbg);border-color:#fca5a5}
+.result .rl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--green)}
+.result.bad .rl{color:var(--red)}
+.result .rb{font:700 17px var(--mono);margin:2px 0}
+.result .rs{font-size:13px;color:var(--ink2)}
+
+/* timeline */
+.tl{max-height:360px;overflow-y:auto;padding:6px 0}
+.ti{display:grid;grid-template-columns:30px 1fr;gap:8px;padding:6px 14px;cursor:pointer;border:0;background:none;width:100%;text-align:left;color:var(--mut)}
+.ti:hover{background:var(--paper)}
+.ti .dot{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;font:600 10.5px var(--mono);background:#fff}
+.ti.dn{color:var(--ink2)}
+.ti.dn .dot{background:var(--acc);border-color:var(--acc);color:#fff}
+.ti.cur{color:var(--ink);font-weight:600;background:var(--acc2)}
+.ti.cur .dot{background:#fff;border-color:var(--acc);color:var(--acc);box-shadow:0 0 0 3px var(--acc3)}
+.ti.w .dot{border-color:var(--red)}
+.ti.w.dn .dot{background:var(--red)}
+
+/* transport */
+.transport{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.96);backdrop-filter:blur(6px);border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:10px 20px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:5}
+.tb{width:38px;height:38px;border-radius:8px;border:1px solid var(--line2);background:#fff;cursor:pointer;display:grid;place-items:center}
+.tb svg{width:16px;height:16px;fill:var(--ink)}
+.tb.play{width:46px;height:46px;border-radius:50%;background:var(--acc);border-color:var(--acc)}
+.tb.play svg{fill:#fff;width:18px;height:18px}
+.tb:disabled{opacity:.35;cursor:default}
+.scrub{flex:1;display:flex;align-items:center;gap:10px;min-width:0}
+.scrub input{flex:1;accent-color:var(--acc)}
+.scrub span{font:12px var(--mono);color:var(--mut);white-space:nowrap}
+.speed{border:1px solid var(--line2);border-radius:6px;padding:6px 8px;background:#fff}
+
+@media(min-width:861px){body{height:100vh;overflow:hidden}.app{overflow:hidden}aside,.work{overflow-y:auto;height:100%}}
+@media(max-width:1000px){.split{grid-template-columns:1fr}.stack{display:contents}.stack>.pane+.pane{margin-top:0}
+ #pProg{order:1}#pInsp{order:2}#pRegs{order:3}#mempane{order:4}#pTl{order:5}}
+@media(max-width:860px){
+ .app{grid-template-columns:1fr}aside{display:none}.msel{display:block;width:100%;margin-top:12px;border:1px solid var(--line2);border-radius:6px;padding:9px;background:#fff}
+ .work{padding:16px 14px 110px}.cl{grid-template-columns:18px 40px 70px 1fr;padding-right:8px}.mm{grid-template-columns:1fr}.hidesm{display:none}.rr{display:none}
+ .transport{gap:6px;padding:8px 10px}.scrub span{display:none}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head><body>
+<header class="appbar"><div class="logo">ISA</div><div><h1>ISA Lab: addressing modes, stack &amp; subroutines</h1><div class="crumb">Computer Organization &amp; Architecture · Module 2: Instruction Set Architecture</div></div><div class="sp"></div>
+<span class="crumb hidesm">Play <span class="kbd">Space</span> Step <span class="kbd">←</span><span class="kbd">→</span></span></header>
+<div class="app">
+<aside id="side" aria-label="Operations"></aside>
+<section class="work">
+ <div class="wh"><div><h2 id="mt"></h2><p id="md"></p></div><div class="formula" id="mf"></div></div>
+ <select class="msel" id="msel" aria-label="Operation"></select>
+ <div class="inputs">
+  <label class="fld" data-f="R0"><span>R0</span><input id="R0" type="number" step="1" value="10"></label>
+  <label class="fld" data-f="R1"><span>R1 · Ri</span><input id="R1" type="number" step="1" value="1004"></label>
+  <label class="fld" data-f="R2"><span>R2 · Rj</span><input id="R2" type="number" step="1" value="8"></label>
+  <label class="fld" data-f="X"><span id="xl">Offset X</span><input id="X" type="number" step="1" value="8"></label>
+  <label class="fld" data-f="PC"><span>PC</span><input id="PC" type="number" step="4" value="1020"></label>
+  <label class="fld" data-f="SP"><span>SP</span><input id="SP" type="number" step="4" value="1048"></label>
+  <label class="fld" data-f="NEW"><span>NEWITEM</span><input id="NEW" type="number" step="1" value="77"></label>
+  <label class="fld" data-f="N"><span>N · count</span><input id="N" type="number" step="1" min="1" value="4"></label>
+  <label class="fld" data-f="NUM1"><span>NUM1 · list addr</span><input id="NUM1" type="number" step="4" value="1004"></label>
+  <div class="sp"></div>
+  <button class="btn ghost" id="memt" type="button">Edit memory</button>
+  <button class="btn pri" id="run" type="button">Load &amp; run</button>
+  <div class="memedit" id="memedit"><input id="memv" aria-label="Memory contents, 16 words from 1000 to 1060"><button class="btn" id="memr" type="button">Reset</button></div>
+  <p class="err" id="err" role="alert"></p>
+ </div>
+ <div class="split">
+  <div class="stack">
+   <div class="pane" id="pProg"><div class="ph">Program <em id="algo"></em></div><div id="code"><div class="idle">Choose an operation and press <b>Load &amp; run</b>.</div></div></div>
+   <div class="pane" id="pRegs"><div class="ph">Registers</div><div id="regs"><div class="idle">—</div></div></div>
+   <div class="pane" id="mempane"><div class="ph">Main memory <em>byte-addressed, 32-bit words</em></div><div class="pb"><div class="mm" id="mem"></div></div>
+    <div class="mleg"><span><i style="background:var(--amberbg);border:1px solid #fcd34d"></i>accessed this step</span><span id="lgs"><i style="background:#f0fdfa;border:1px solid #99f6e4"></i>on the stack (SP … 1056)</span></div></div>
+  </div>
+  <div class="stack">
+   <div class="pane" id="pInsp"><div class="ph">Step inspector <span class="stepno" id="sno"></span></div><div class="pb" id="insp"><div class="idle">Each step will be explained here, with the calculation it performs.</div></div></div>
+   <div class="pane" id="pTl"><div class="ph">Timeline <em>click a step to jump</em></div><div class="tl" id="tl"></div></div>
+  </div>
+ </div>
+</section>
+</div>
+<nav class="transport" aria-label="Playback">
+ <button class="tb" id="first" title="First step" disabled><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
+ <button class="tb" id="prev" title="Previous step (←)" disabled><svg viewBox="0 0 16 16"><path d="M12 2v12L4 8z"/></svg></button>
+ <button class="tb play" id="play" title="Play / pause (Space)" disabled><svg viewBox="0 0 16 16" id="pico"><path d="M4 2v12l10-6z"/></svg></button>
+ <button class="tb" id="nxt" title="Next step (→)" disabled><svg viewBox="0 0 16 16"><path d="M4 2v12l8-6z"/></svg></button>
+ <button class="tb" id="last" title="Jump to result" disabled><svg viewBox="0 0 16 16"><path d="M11 2h2v12h-2zM2 2v12l8-6z"/></svg></button>
+ <div class="scrub"><input type="range" id="scr" min="0" max="0" value="0" disabled aria-label="Step"><span id="scl">0 / 0</span></div>
+ <select class="speed" id="spd" aria-label="Speed"><option value="2600">0.5×</option><option value="1600" selected>1×</option><option value="900">2×</option><option value="450">4×</option></select>
+</nav>
+<script>
+const $=id=>document.getElementById(id);
+const ADDR=[];for(let a=1000;a<=1060;a+=4)ADDR.push(a);
+const DEFMEM=[1016,25,40,7,99,63,18,12,50,31,1008,88,5,70,44,0];
+const BOTTOM=1056,TOPLIM=1000;
+$("memv").value=DEFMEM.join(", ");
+/* ---------- mode catalogue ---------- */
+const MODES={
+ imm:{f:["R0","X"],xl:"Immediate value",x:6,name:"Immediate",algo:"Operand = X (inside the instruction)",
+  h:"The operand is written in the instruction itself after #. No memory access is needed."},
+ reg:{f:["R0","R1"],name:"Register",algo:"Operand = [R1]",h:"The operand is the contents of register R1."},
+ abs:{f:["R0","X"],xl:"Address LOC",x:1012,name:"Absolute (direct)",algo:"EA = LOC",h:"The memory address of the operand is written in the instruction."},
+ ind:{f:["R0","R1"],name:"Indirect (register)",algo:"EA = [R1]",h:"R1 holds the address of the operand. R1 acts as a pointer."},
+ indm:{f:["R0","X"],xl:"Pointer location A",x:1000,name:"Indirect (memory)",algo:"EA = [A]",h:"Memory word A holds the address B of the operand, so two memory reads are needed."},
+ idx:{f:["R0","R1","X"],xl:"Offset X",x:8,name:"Index",algo:"EA = X + [Ri]",h:"EA is the constant X plus the contents of the index register R1."},
+ bi:{f:["R0","R1","R2"],name:"Base with index",algo:"EA = [Ri] + [Rj]",h:"EA is the sum of two registers: R1 (index register) and R2 (base register)."},
+ bio:{f:["R0","R1","R2","X"],xl:"Offset X",x:4,name:"Base with index and offset",algo:"EA = X + [Ri] + [Rj]",h:"EA is the constant X plus the contents of two registers. Useful for 2-D arrays."},
+ rel:{f:["R0","PC","X"],xl:"Offset X",x:8,name:"Relative",algo:"EA = [PC] + X",h:"Index mode with the program counter PC in place of a general-purpose register."},
+ ainc:{f:["R0","R1"],name:"Autoincrement",algo:"EA = [Ri], then Ri = Ri + 4",h:"Use R1 as the address, then add 4 to R1 so it points to the next word of the list."},
+ adec:{f:["R0","R1"],name:"Autodecrement",algo:"Ri = Ri − 4, then EA = [Ri]",h:"First subtract 4 from R1, then use R1 as the address."},
+ push2:{f:["SP","NEW"],name:"PUSH",algo:"Subtract #4,SP  ·  Move NEWITEM,(SP)",h:"Stack grows toward lower addresses. Shaded words (SP to 1056) are on the stack; 1056 is the bottom."},
+ pushA:{f:["SP","NEW"],name:"PUSH",algo:"Move NEWITEM,−(SP)",h:"With autodecrement the push is a single instruction."},
+ pop2:{f:["SP"],name:"POP",algo:"Move (SP),ITEM  ·  Add #4,SP",h:"Read the top word, then move SP down toward the bottom by 4."},
+ popA:{f:["SP"],name:"POP",algo:"Move (SP)+,ITEM",h:"With autoincrement the pop is a single instruction."},
+ spush:{f:["SP","NEW"],name:"SAFE PUSH",algo:"Check SP against top limit 1000 first",h:"Try SP = 1000 to see the FULLERROR branch."},
+ spop:{f:["SP"],name:"SAFE POP",algo:"Check SP against bottom 1056 first",h:"Try SP = 1060 (empty stack) to see the EMPTYERROR branch."},
+ call:{f:[],name:"CALL / RETURN",algo:"CALL: LR ← [PC], PC ← target · RETURN: PC ← [LR]",h:"The main program calls subroutine SUB at 500 and comes back."},
+ nest1:{f:[],name:"Nesting (link register only)",algo:"Second CALL overwrites LR",h:"SUB1 calls SUB2. Watch what happens to the first return address."},
+ nest2:{f:["SP"],name:"Nesting (stack)",algo:"SUB1 pushes LR before calling SUB2",h:"The fix: SUB1 saves LR on the stack and restores it before RETURN."},
+ list:{f:["N","NUM1"],name:"Parameter passing",algo:"R1 = count, R2 = list pointer, R0 = result",h:"The caller passes N in R1 and the list address in R2; the subroutine returns the sum in R0."}
+};
+
+
+/* ---------- step recorder ---------- */
+function mk(order,R,mem,prog,showSP){
+ const S=[];
+ const st=(p,t,o={})=>S.push({p,t,R:order.map(n=>[n,R[n]]),hr:o.hr||[],M:mem?{...mem}:null,hm:o.hm||[],sp:showSP?R.SP:null,P:prog,cur:o.cur===undefined?null:o.cur,w:!!o.w,c:o.c||null});
+ return{S,st};
+}
+const chkA=(a,what)=>{if(!ADDR.includes(a))throw`${what} = ${a} is not a word address in the memory shown (1000, 1004, … 1060). Change the inputs.`};
+const L=(a,l,t)=>({a,l:l||"",t});
+const C=(terms,op,res)=>({terms,op,res});
+
+/* ---------- addressing modes ---------- */
+function addrMode(mode,I,mem){
+ const m=MODES[mode],X=I.X;
+ const R={R0:I.R0};const regs=[];
+ if(m.f.includes("R1")){R.R1=I.R1;regs.push("R1")}
+ if(m.f.includes("R2")){R.R2=I.R2;regs.push("R2")}
+ if(mode=="rel"){R.PC=I.PC;regs.push("PC")}
+ const memMode=!["imm","reg"].includes(mode);
+ if(memMode){R.EA=null;R.MDR=null}
+ const order=["R0",...regs,...(memMode?["EA","MDR"]:[])];
+ const src={imm:`#${X}`,reg:"R1",abs:`${X}`,ind:"(R1)",indm:`(${X})`,idx:`${X}(R1)`,bi:"(R1,R2)",bio:`${X}(R1,R2)`,rel:`${X}(PC)`,ainc:"(R1)+",adec:"-(R1)"}[mode];
+ const ins=`ADD ${src},R0`,prog=[L(2000,"",ins)];
+ const {S,st}=mk(order,R,memMode?mem:null,prog);
+ st("Fetch & decode",`Instruction <b>${ins}</b> is fetched and decoded. The source operand uses <b>${m.name} mode</b>; the destination R0 uses register mode. The instruction will do R0 = R0 + source.`,{cur:0});
+ let op,ea=null;
+ if(mode=="imm"){op=X;st("Get operand",`Immediate mode: the # sign means the number after it is the operand itself. Operand = <b>${X}</b>. No memory access is needed.`,{cur:0})}
+ else if(mode=="reg"){op=R.R1;st("Get operand",`Register mode: the operand is the contents of register R1. [R1] means “contents of R1” = <b>${op}</b>.`,{hr:["R1"],cur:0})}
+ else{
+  if(mode=="abs"){ea=X;chkA(ea,"EA");R.EA=ea;st("Effective address",`Absolute mode: EA = LOC, where LOC is the address written in the instruction (${X}). EA = <b>${ea}</b>.`,{hr:["EA"],cur:0,c:C([["LOC",X]],"",["EA",ea])})}
+  if(mode=="ind"){ea=R.R1;chkA(ea,"EA = [R1]");R.EA=ea;st("Effective address",`Indirect mode: EA = [R1], where [R1] is the contents of R1 (${R.R1}). R1 is the pointer. EA = <b>${ea}</b>.`,{hr:["R1","EA"],cur:0,c:C([["[R1]",R.R1]],"",["EA",ea])})}
+  if(mode=="indm"){chkA(X,"A");R.EA=X;st("Read pointer",`Indirect through memory: first read memory word A, where A = ${X} is the address in the instruction.`,{hr:["EA"],hm:[X],cur:0});
+   const B=mem[X];R.MDR=B;st("Read pointer",`Memory[${X}] = <b>${B}</b>. This value B is the address of the operand, so EA = B = ${B}.`,{hr:["MDR"],hm:[X],cur:0});
+   chkA(B,"B = Memory["+X+"]");ea=B;R.EA=ea;st("Effective address",`EA = [A] = Memory[${X}] = <b>${ea}</b>. Memory word ${X} is the pointer.`,{hr:["EA"],cur:0,c:C([["M["+X+"]",ea]],"",["EA",ea])})}
+  if(mode=="idx"){ea=X+R.R1;st("Effective address",`Index mode: EA = X + [Ri], where X = constant in the instruction (${X}) and [Ri] = contents of index register R1 (${R.R1}). EA = ${X} + ${R.R1} = <b>${ea}</b>.`,{hr:["R1"],cur:0,c:C([["X",X],["[R1]",R.R1]],"+",["EA",ea])});chkA(ea,"EA");R.EA=ea;st("Load EA register",`EA register now holds ${ea}.`,{hr:["EA"],cur:0})}
+  if(mode=="bi"){ea=R.R1+R.R2;st("Effective address",`Base with index: EA = [Ri] + [Rj], where [Ri] = contents of R1, the index register (${R.R1}), and [Rj] = contents of R2, the base register (${R.R2}). EA = ${R.R1} + ${R.R2} = <b>${ea}</b>.`,{hr:["R1","R2"],cur:0,c:C([["[R1]",R.R1],["[R2]",R.R2]],"+",["EA",ea])});chkA(ea,"EA");R.EA=ea;st("Load EA register",`EA register now holds ${ea}.`,{hr:["EA"],cur:0})}
+  if(mode=="bio"){ea=X+R.R1+R.R2;st("Effective address",`Base with index and offset: EA = X + [Ri] + [Rj], where X = constant offset (${X}), [Ri] = contents of R1 (${R.R1}) and [Rj] = contents of R2 (${R.R2}). EA = ${X} + ${R.R1} + ${R.R2} = <b>${ea}</b>.`,{hr:["R1","R2"],cur:0,c:C([["X",X],["[R1]",R.R1],["[R2]",R.R2]],"+",["EA",ea])});chkA(ea,"EA");R.EA=ea;st("Load EA register",`EA register now holds ${ea}.`,{hr:["EA"],cur:0})}
+  if(mode=="rel"){ea=R.PC+X;st("Effective address",`Relative mode: EA = [PC] + X, where [PC] = contents of the program counter (${R.PC}) and X = offset in the instruction (${X}). EA = ${R.PC} + ${X} = <b>${ea}</b>.`,{hr:["PC"],cur:0,c:C([["[PC]",R.PC],["X",X]],"+",["EA",ea])});chkA(ea,"EA");R.EA=ea;st("Load EA register",`EA register now holds ${ea}.`,{hr:["EA"],cur:0})}
+  if(mode=="ainc"){ea=R.R1;chkA(ea,"EA = [R1]");R.EA=ea;st("Effective address",`Autoincrement (R1)+: EA = [R1], the current contents of R1 = <b>${ea}</b>. R1 is changed only after the operand is read.`,{hr:["R1","EA"],cur:0})}
+  if(mode=="adec"){const o=R.R1;R.R1=o-4;st("Decrement first",`Autodecrement −(R1): first R1 = R1 − 4, where R1 = ${o} and 4 = bytes in one 32-bit word. R1 = ${o} − 4 = <b>${R.R1}</b>.`,{hr:["R1"],cur:0,c:C([["R1",o],["word",4]],"−",["R1",R.R1])});
+   ea=R.R1;chkA(ea,"EA = [R1]");R.EA=ea;st("Effective address",`Now EA = [R1] = <b>${ea}</b>.`,{hr:["EA"],cur:0})}
+  op=mem[ea];R.MDR=op;
+  st("Memory read",`The processor sends EA = ${ea} to memory. Memory[${ea}] = <b>${op}</b> is loaded into the memory data register (MDR). This is the operand.`,{hr:["MDR"],hm:[ea],cur:0,c:C([["M["+ea+"]",op]],"",["MDR",op])});
+ }
+ const old=R.R0;R.R0=old+op;
+ st("ALU add",`R0 = R0 + operand, where R0 = ${old} (old contents of R0) and operand = ${op}. R0 = ${old} + ${op} = <b>${R.R0}</b>.`,{hr:["R0"],hm:ea!=null?[ea]:[],cur:0,c:C([["R0",old],["operand",op]],"+",["R0",R.R0])});
+ if(mode=="ainc"){const o=R.R1;R.R1=o+4;st("Increment after",`Autoincrement: after the access, R1 = R1 + 4, where R1 = ${o} and 4 = bytes per word. R1 = <b>${R.R1}</b>, now pointing to the next item in the list.`,{hr:["R1"],cur:0,c:C([["R1",o],["word",4]],"+",["R1",R.R1])})}
+ st("Done",`Instruction complete. The operand was ${ea!=null?`at memory address ${ea}`:mode=="imm"?"inside the instruction":"in register R1"}; R0 now holds ${R.R0}.`,{cur:0});
+ return{S,algo:`${m.name}: ${m.algo}`,fin:`R0 = ${old} + ${op} = ${R.R0}`,bits:ea!=null?`Effective address EA = ${ea}${mode=="ainc"?`, R1 → ${R.R1}`:mode=="adec"?`, R1 = ${R.R1}`:""}`:`No memory access (${m.name.toLowerCase()} mode)`};
+}
+
+/* ---------- stack ---------- */
+function stack(mode,I,mem){
+ const m=MODES[mode],push=mode.includes("ush");chkA(I.SP,"SP");
+ const R={SP:I.SP};if(push)R.NEWITEM=I.NEW;else R.ITEM=null;
+ const progT={push2:["Subtract #4,SP","Move NEWITEM,(SP)"],pushA:["Move NEWITEM,-(SP)"],pop2:["Move (SP),ITEM","Add #4,SP"],popA:["Move (SP)+,ITEM"],
+  spush:["Compare #1000,SP","Branch≤0 FULLERROR","Move NEWITEM,-(SP)"],spop:["Compare #1056,SP","Branch>0 EMPTYERROR","Move (SP)+,ITEM"]}[mode];
+ const prog=progT.map((t,i)=>L("",i==0&&mode=="spush"?"SAFEPUSH":i==0&&mode=="spop"?"SAFEPOP":"",t));
+ const {S,st}=mk(push?["SP","NEWITEM"]:["SP","ITEM"],R,mem,prog,true);
+ const items=(BOTTOM-R.SP)/4+1;
+ st("Setup",`The stack holds ${Math.max(0,items)} word(s) from SP = ${R.SP} down to the bottom at 1056 (shaded). It grows toward lower addresses, and each word is 4 bytes, so SP changes by 4.`,{hr:["SP"]});
+ if(push&&!mode.startsWith("s")&&R.SP<=TOPLIM)throw"The stack is full (SP = 1000 is the top limit). A plain PUSH would write outside the stack area. Pick SAFE PUSH to see how this is caught.";
+ if(!push&&!mode.startsWith("s")&&R.SP>BOTTOM)throw"The stack is empty (SP = 1060 is past the bottom 1056). A plain POP would read garbage. Pick SAFE POP to see how this is caught.";
+ let ci=0;
+ if(mode=="spush"){st("Check full",`Compare #1000,SP computes [SP] − 1000, where [SP] = ${R.SP} and 1000 = top limit of the stack. ${R.SP} − 1000 = <b>${R.SP-1000}</b>.`,{hr:["SP"],cur:0});
+  if(R.SP<=TOPLIM){st("FULLERROR",`Result ≤ 0, so Branch≤0 jumps to FULLERROR. The push is refused and the stack is unchanged.`,{cur:1,w:true});
+   return{S,algo:m.algo,fin:"FULLERROR: stack is full",bits:`SP stays ${R.SP}; NEWITEM was not pushed`,bad:true}}
+  st("Check full",`Result > 0, so Branch≤0 is not taken. There is room for one more word.`,{cur:1});ci=2}
+ if(mode=="spop"){st("Check empty",`Compare #1056,SP computes [SP] − 1056, where [SP] = ${R.SP} and 1056 = address of the bottom element. ${R.SP} − 1056 = <b>${R.SP-1056}</b>.`,{hr:["SP"],cur:0});
+  if(R.SP>BOTTOM){st("EMPTYERROR",`Result > 0, so Branch>0 jumps to EMPTYERROR. There is nothing to pop.`,{cur:1,w:true});
+   return{S,algo:m.algo,fin:"EMPTYERROR: stack is empty",bits:`SP stays ${R.SP}; nothing was popped`,bad:true}}
+  st("Check empty",`Result ≤ 0, so Branch>0 is not taken. The stack has at least one item.`,{cur:1});ci=2}
+ if(push){
+  const o=R.SP;R.SP=o-4;
+  st(mode=="push2"?"Subtract #4,SP":"Autodecrement",`SP = SP − 4, where SP = ${o} and 4 = bytes per word. SP = <b>${R.SP}</b>${mode=="push2"?"":" (the −(SP) mode does this first)"}.`,{hr:["SP"],cur:ci,c:C([["SP",o],["word",4]],"−",["SP",R.SP])});
+  mem[R.SP]=R.NEWITEM;
+  st("Store",`NEWITEM (${R.NEWITEM}) is written to Memory[SP] = Memory[${R.SP}]. It is the new top of the stack.`,{hm:[R.SP],hr:["NEWITEM"],cur:mode=="push2"?1:ci});
+  st("Done",`PUSH complete. The stack now has ${(BOTTOM-R.SP)/4+1} word(s).`,{});
+  return{S,algo:m.algo,fin:`Pushed ${R.NEWITEM} → Memory[${R.SP}]`,bits:`SP: ${o} → ${R.SP}`};
+ }else{
+  const o=R.SP;R.ITEM=mem[o];
+  st("Read top",`ITEM = Memory[SP] = Memory[${o}] = <b>${R.ITEM}</b>.`,{hm:[o],hr:["ITEM"],cur:ci});
+  R.SP=o+4;
+  st(mode=="pop2"?"Add #4,SP":"Autoincrement",`SP = SP + 4, where SP = ${o} and 4 = bytes per word. SP = <b>${R.SP}</b>. The old word is left in memory but is no longer on the stack.`,{hr:["SP"],cur:mode=="pop2"?1:ci,c:C([["SP",o],["word",4]],"+",["SP",R.SP])});
+  st("Done",`POP complete. ${R.SP>BOTTOM?"The stack is now empty.":`The stack now has ${(BOTTOM-R.SP)/4+1} word(s).`}`,{});
+  return{S,algo:m.algo,fin:`Popped ITEM = ${R.ITEM}`,bits:`SP: ${o} → ${R.SP}`};
+ }
+}
+
+/* ---------- subroutines ---------- */
+function sub(mode,I,mem){
+ const m=MODES[mode];
+ if(mode=="call"){
+  const prog=[L(200,"MAIN","…instruction"),L(204,"","Call SUB"),L(208,"","next instruction"),L(500,"SUB","first instruction"),L(504,"","…body of SUB"),L(508,"","Return")];
+  const R={PC:200,LR:null},{S,st}=mk(["PC","LR"],R,null,prog),c=a=>prog.findIndex(p=>p.a==a);
+  st("Main program",`The main program starts at address 200. PC holds the address of the instruction to fetch.`,{hr:["PC"],cur:c(200)});
+  R.PC=204;st("Main program",`Instruction at 200 executes. PC = 200 + 4 = <b>204</b>.`,{hr:["PC"],cur:c(200)});
+  R.PC=208;st("Fetch CALL",`Call SUB is fetched from 204. During the fetch, PC is already incremented to <b>208</b>, the address of the next instruction.`,{hr:["PC"],cur:c(204)});
+  R.LR=208;st("CALL step 1",`Store the contents of PC in the link register: LR ← [PC] = <b>208</b>. This is the return address.`,{hr:["LR"],cur:c(204)});
+  R.PC=500;st("CALL step 2",`Branch to the target: PC ← 500, the address of SUB.`,{hr:["PC"],cur:c(204)});
+  R.PC=504;st("Subroutine",`SUB runs its first instruction. PC = 504.`,{hr:["PC"],cur:c(500)});
+  R.PC=508;st("Subroutine",`SUB continues. PC = 508.`,{hr:["PC"],cur:c(504)});
+  R.PC=R.LR;st("RETURN",`Return loads PC with the contents of the link register: PC ← [LR] = <b>208</b>.`,{hr:["PC","LR"],cur:c(508)});
+  st("Back in main",`Execution continues at 208, right after the CALL.`,{hr:["PC"],cur:c(208)});
+  return{S,algo:m.algo,fin:"Returned correctly to 208",bits:"LR held the return address 208 during the subroutine"};
+ }
+ if(mode=="nest1"){
+  const prog=[L(200,"MAIN","…instruction"),L(204,"","Call SUB1"),L(208,"","next instruction"),L(500,"SUB1","first instruction"),L(504,"","Call SUB2"),L(508,"","next instruction"),L(512,"","Return"),L(800,"SUB2","first instruction"),L(804,"","Return")];
+  const R={PC:200,LR:null},{S,st}=mk(["PC","LR"],R,null,prog),c=a=>prog.findIndex(p=>p.a==a);
+  st("Main program",`Main starts at 200.`,{hr:["PC"],cur:c(200)});
+  R.PC=208;st("CALL SUB1",`Call SUB1 at 204 is fetched; PC is incremented to 208.`,{hr:["PC"],cur:c(204)});
+  R.LR=208;st("CALL SUB1",`LR ← [PC] = <b>208</b> (return address into main).`,{hr:["LR"],cur:c(204)});
+  R.PC=500;st("CALL SUB1",`PC ← 500. SUB1 starts.`,{hr:["PC"],cur:c(500)});
+  R.PC=508;st("CALL SUB2",`SUB1 reaches Call SUB2 at 504; PC is incremented to 508.`,{hr:["PC"],cur:c(504)});
+  R.LR=508;st("CALL SUB2",`LR ← [PC] = <b>508</b>. The old contents of LR (208) are <b>destroyed</b>: the return address into main is lost.`,{hr:["LR"],cur:c(504),w:true});
+  R.PC=800;st("CALL SUB2",`PC ← 800. SUB2 starts.`,{hr:["PC"],cur:c(800)});
+  R.PC=R.LR;st("SUB2 RETURN",`SUB2 returns: PC ← [LR] = 508. This one is correct.`,{hr:["PC","LR"],cur:c(804)});
+  R.PC=512;st("SUB1",`SUB1 continues at 508; PC = 512.`,{hr:["PC"],cur:c(508)});
+  R.PC=R.LR;st("SUB1 RETURN",`SUB1 returns: PC ← [LR] = <b>508</b>, but it should be 208! Control goes back into SUB1 instead of main.`,{hr:["PC","LR"],cur:c(512),w:true});
+  st("Problem",`The program now loops between 508 and 512 forever. Fix: save LR on the stack before a nested call (choose “Nested calls, return address saved on stack”).`,{cur:c(508),w:true});
+  return{S,algo:m.algo,fin:"Return address lost: expected 208, got 508",bits:"The second CALL overwrote the link register",bad:true};
+ }
+ if(mode=="nest2"){
+  chkA(I.SP,"SP");if(I.SP<=TOPLIM)throw"SP must leave room for one push (use SP greater than 1000).";
+  const prog=[L(200,"MAIN","…instruction"),L(204,"","Call SUB1"),L(208,"","next instruction"),L(500,"SUB1","Move LR,-(SP)"),L(504,"","…body"),L(508,"","Call SUB2"),L(512,"","next instruction"),L(516,"","Move (SP)+,LR"),L(520,"","Return"),L(800,"SUB2","first instruction"),L(804,"","Return")];
+  const R={PC:200,LR:null,SP:I.SP},{S,st}=mk(["PC","LR","SP"],R,mem,prog,true),c=a=>prog.findIndex(p=>p.a==a);
+  st("Main program",`Main starts at 200. SP = ${R.SP}; the shaded words are the stack.`,{hr:["PC","SP"],cur:c(200)});
+  R.PC=208;R.LR=208;st("CALL SUB1",`Call SUB1: PC is incremented to 208, then LR ← [PC] = <b>208</b>.`,{hr:["LR"],cur:c(204)});
+  R.PC=500;st("CALL SUB1",`PC ← 500. SUB1 starts.`,{hr:["PC"],cur:c(500)});
+  const o=R.SP;R.SP=o-4;mem[R.SP]=R.LR;R.PC=504;
+  st("Save LR",`Move LR,−(SP): SP = SP − 4 = ${o} − 4 = <b>${R.SP}</b>, then Memory[${R.SP}] ← [LR] = 208. The return address is safe on the stack.`,{hr:["SP"],hm:[R.SP],cur:c(500)});
+  R.PC=512;R.LR=512;st("CALL SUB2",`Call SUB2 at 508: PC incremented to 512, LR ← <b>512</b>. LR is overwritten, but 208 is still on the stack.`,{hr:["LR"],hm:[R.SP],cur:c(508)});
+  R.PC=800;st("CALL SUB2",`PC ← 800. SUB2 starts.`,{hr:["PC"],cur:c(800)});
+  R.PC=R.LR;st("SUB2 RETURN",`SUB2 returns: PC ← [LR] = 512.`,{hr:["PC","LR"],cur:c(804)});
+  R.PC=520;R.LR=mem[R.SP];const t=R.SP;R.SP=t+4;
+  st("Restore LR",`Move (SP)+,LR: LR ← Memory[${t}] = <b>${R.LR}</b>, then SP = ${t} + 4 = <b>${R.SP}</b>.`,{hr:["LR","SP"],hm:[t],cur:c(516)});
+  R.PC=R.LR;st("SUB1 RETURN",`SUB1 returns: PC ← [LR] = <b>208</b>. Correct!`,{hr:["PC","LR"],cur:c(520)});
+  st("Back in main",`Execution continues in main at 208. SP is back to ${R.SP}.`,{hr:["PC"],cur:c(208)});
+  return{S,algo:m.algo,fin:"Returned correctly to 208",bits:`Return address 208 was kept on the stack at ${t}`};
+ }
+ /* list sum */
+ const N=I.N,NUM1=I.NUM1;
+ if(N<1)throw"N must be at least 1.";chkA(NUM1,"NUM1");chkA(NUM1+4*(N-1),"Last list address NUM1 + 4(N − 1)");
+ const prog=[L(200,"MAIN","Move N,R1"),L(204,"","Move #NUM1,R2"),L(208,"","Call LISTADD"),L(212,"","Move R0,SUM"),L(600,"LISTADD","Clear R0"),L(604,"LOOP","Add (R2)+,R0"),L(608,"","Decrement R1"),L(612,"","Branch>0 LOOP"),L(616,"","Return")];
+ const R={PC:200,LR:null,R0:null,R1:null,R2:null},{S,st}=mk(["PC","LR","R0","R1","R2"],R,mem,prog),c=a=>prog.findIndex(p=>p.a==a);
+ const listA=[...Array(N).keys()].map(k=>NUM1+4*k);
+ st("Setup",`Add N = ${N} numbers stored from NUM1 = ${NUM1} (highlighted). Parameters go in registers: R1 = count, R2 = address of the list. The result comes back in R0.`,{hm:listA,cur:c(200)});
+ R.R1=N;R.PC=204;st("Pass N",`Move N,R1: R1 ← ${N}. R1 is the loop counter.`,{hr:["R1"],cur:c(200)});
+ R.R2=NUM1;R.PC=208;st("Pass address",`Move #NUM1,R2: R2 ← ${NUM1}, the address of the first number (immediate mode, so the address itself is loaded).`,{hr:["R2"],cur:c(204)});
+ R.PC=212;R.LR=212;st("CALL",`Call LISTADD: LR ← [PC] = <b>212</b> (return address).`,{hr:["LR"],cur:c(208)});
+ R.PC=600;st("CALL",`PC ← 600, the start of LISTADD.`,{hr:["PC"],cur:c(208)});
+ R.R0=0;R.PC=604;st("Clear R0",`Clear R0: R0 ← 0. R0 will hold the running sum.`,{hr:["R0"],cur:c(600)});
+ let sum=0,k=0;
+ while(true){
+  const a=R.R2,v=mem[a],o=R.R0;sum+=v;R.R0=o+v;R.R2=a+4;R.PC=608;
+  st(`Loop ${k+1} of ${N}`,`Add (R2)+,R0: operand = Memory[[R2]] = Memory[${a}] = ${v}. R0 = R0 + operand = ${o} + ${v} = <b>${R.R0}</b>. Autoincrement: R2 = ${a} + 4 = ${R.R2}.`,{hr:["R0","R2"],hm:[a],cur:c(604),c:C([["R0",o],["M["+a+"]",v]],"+",["R0",R.R0])});
+  R.R1--;R.PC=612;st(`Loop ${k+1} of ${N}`,`Decrement R1: R1 = ${R.R1+1} − 1 = <b>${R.R1}</b> numbers left.`,{hr:["R1"],cur:c(608)});
+  k++;
+  if(R.R1>0){R.PC=604;st(`Loop ${k} of ${N}`,`Branch>0 LOOP: R1 = ${R.R1} > 0, so branch back to LOOP (PC ← 604).`,{hr:["PC"],cur:c(612)})}
+  else{R.PC=616;st(`Loop ${k} of ${N}`,`Branch>0 LOOP: R1 = 0, so the branch is not taken. Fall through to Return.`,{hr:["PC"],cur:c(612)});break}
+ }
+ R.PC=R.LR;st("RETURN",`Return: PC ← [LR] = 212. Back in the main program with the sum in R0.`,{hr:["PC","LR"],cur:c(616)});
+ st("Store result",`Move R0,SUM: the caller stores R0 = <b>${R.R0}</b> into SUM.`,{hr:["R0"],cur:c(212)});
+ return{S,algo:m.algo,fin:`SUM = ${listA.map(a=>mem[a]).join(" + ")} = ${sum}`,bits:`Parameters passed in R1 (N = ${N}) and R2 (NUM1 = ${NUM1}); result returned in R0`};
+}
+
+
+/* ---------- UI ---------- */
+const GROUPS=[["Addressing modes",["imm","reg","abs","ind","indm","idx","bi","bio","rel","ainc","adec"]],["Stack",["push2","pushA","pop2","popA","spush","spop"]],["Subroutines",["call","nest1","nest2","list"]]];
+const SYN={imm:"#X",reg:"Ri",abs:"LOC",ind:"(Ri)",indm:"(A)",idx:"X(Ri)",bi:"(Ri,Rj)",bio:"X(Ri,Rj)",rel:"X(PC)",ainc:"(Ri)+",adec:"−(Ri)",
+ push2:"Subtract #4,SP · Move",pushA:"Move NEWITEM,−(SP)",pop2:"Move · Add #4,SP",popA:"Move (SP)+,ITEM",spush:"Compare · Branch≤0 · Move",spop:"Compare · Branch>0 · Move",
+ call:"Call SUB · Return",nest1:"SUB1 → SUB2, LR only",nest2:"SUB1 saves LR on stack",list:"R1 = N, R2 = NUM1, R0 = sum"};
+const TITLE={imm:"Immediate mode",reg:"Register mode",abs:"Absolute (direct) mode",ind:"Indirect mode via a register",indm:"Indirect mode via memory",idx:"Index mode",bi:"Base with index",bio:"Base with index and offset",rel:"Relative mode",ainc:"Autoincrement mode",adec:"Autodecrement mode",
+ push2:"PUSH with two instructions",pushA:"PUSH with autodecrement",pop2:"POP with two instructions",popA:"POP with autoincrement",spush:"SAFE PUSH",spop:"SAFE POP",
+ call:"Subroutine CALL and RETURN",nest1:"Subroutine nesting: the problem",nest2:"Subroutine nesting: the fix",list:"Parameter passing through registers"};
+const ROLE={R0:"destination / accumulator",R1:"general purpose (Ri)",R2:"general purpose (Rj)",PC:"program counter",EA:"effective address",MDR:"memory data register",SP:"stack pointer",LR:"link register (return address)",NEWITEM:"value to push",ITEM:"value popped"};
+let mode="idx";
+$("side").innerHTML=GROUPS.map(([g,ms])=>`<div class="grp">${g}</div>`+ms.map(m=>`<button class="op" data-m="${m}"><b>${TITLE[m]}</b><code>${SYN[m]}</code></button>`).join("")).join("");
+$("msel").innerHTML=GROUPS.map(([g,ms])=>`<optgroup label="${g}">`+ms.map(m=>`<option value="${m}">${TITLE[m]} · ${SYN[m]}</option>`).join("")+`</optgroup>`).join("");
+document.querySelectorAll(".op").forEach(b=>b.onclick=()=>pick(b.dataset.m));
+$("msel").onchange=e=>pick(e.target.value);
+function pick(m){
+ mode=m;const d=MODES[m];
+ document.querySelectorAll(".op").forEach(b=>b.setAttribute("aria-current",b.dataset.m==m));
+ $("msel").value=m;$("mt").textContent=TITLE[m];$("md").textContent=d.h;$("mf").textContent=d.algo;
+ document.querySelectorAll("[data-f]").forEach(l=>l.hidden=!d.f.includes(l.dataset.f));
+ if(d.xl){$("xl").textContent=d.xl;$("X").value=d.x}
+ const noMem=["call","nest1"].includes(m);$("memt").hidden=noMem;
+ reset();
+}
+$("memt").onclick=()=>$("memedit").classList.toggle("on");
+
+let S=[],idx=-1,timer=null,playing=false,cur=null;
+const esc=s=>String(s);
+const fmt=v=>v==null?'<span class="nil">—</span>':v;
+const hex=v=>v==null?"":(v<0?"−":"")+"0x"+Math.abs(v).toString(16).toUpperCase();
+function reset(){
+ clearTimeout(timer);playing=false;S=[];idx=-1;cur=null;setIcon();
+ $("code").innerHTML=`<div class="idle">Press <b>Load &amp; run</b> to start.</div>`;$("regs").innerHTML=`<div class="idle">—</div>`;
+ $("insp").innerHTML=`<div class="idle">Each step will be explained here, with the calculation it performs.</div>`;$("tl").innerHTML="";$("sno").textContent="";$("algo").textContent="";
+ $("mempane").hidden=["call","nest1"].includes(mode);$("lgs").hidden=true;
+ const mem={};const mv=$("memv").value.split(/[\s,]+/).filter(Boolean);ADDR.forEach((a,k)=>mem[a]=mv[k]??"?");
+ $("mem").innerHTML=memHTML({M:mem,hm:[],sp:null},null);
+ ["first","prev","play","nxt","last","scr"].forEach(b=>$(b).disabled=true);$("scr").max=0;$("scr").value=0;$("scl").textContent="0 / 0";
+}
+function memHTML(s,pv){
+ const ea=(s.R||[]).find(r=>r[0]=="EA");const half=ADDR.length/2;
+ const row=a=>{const inS=s.sp!=null&&a>=s.sp&&a<=BOTTOM,chg=pv&&pv.M&&pv.M[a]!==s.M[a];
+  let tags="";if(s.sp===a)tags+=`<span class="pt sp">SP</span>`;if(ea&&ea[1]===a)tags+=`<span class="pt ea">EA</span>`;
+  return`<div class="mr${inS?" stk":""}${s.hm.includes(a)?" hl":""}${chg?" chg":""}"><span class="ma">${a}</span><span class="mv">${s.M[a]}</span><span>${tags}</span></div>`};
+ return`<div>${ADDR.slice(0,half).map(row).join("")}</div><div>${ADDR.slice(half).map(row).join("")}</div>`;
+}
+function render(i){
+ idx=i;const s=S[i],pv=i>0?S[i-1]:null,last=i==S.length-1;
+ $("code").innerHTML=`<div class="code">`+s.P.map((p,k)=>`<div class="cl${k===s.cur?" cur":""}"><span class="ar">${k===s.cur?"▶":""}</span><span class="ad">${p.a}</span><span class="lb">${p.l?p.l+":":""}</span><span>${p.t}</span></div>`).join("")+`</div>`;
+ $("regs").innerHTML=`<table class="rt"><tr><th>Reg</th><th style="text-align:right">Decimal</th><th style="text-align:right">Hex</th><th class="rr">Role</th></tr>`+
+  s.R.map(([n,v])=>{const o=pv&&pv.R.find(r=>r[0]==n),chg=o&&o[1]!==v;
+   return`<tr class="${s.hr.includes(n)?"hl ":""}${chg?"chg":""}"><td class="rn">${n}</td><td class="rv">${fmt(v)}</td><td class="rh">${hex(v)}</td><td class="rr">${ROLE[n]||""}</td></tr>`}).join("")+`</table>`;
+ if(s.M){$("mem").innerHTML=memHTML(s,pv);$("lgs").hidden=s.sp==null}
+ let h=`<div class="sttl">${s.p}</div><div class="narr${s.w?" w":""}">${s.t}</div>`;
+ if(s.c){h+=`<div class="calc">`+s.c.terms.map(([l,v],k)=>`${k?`<span class="opx">${s.c.op}</span>`:""}<div class="tm"><small>${l}</small><b>${v}</b></div>`).join("")+`<span class="opx">→</span><div class="tm res"><small>${s.c.res[0]}</small><b>${s.c.res[1]}</b></div></div>`}
+ if(last)h+=`<div class="result on${cur.bad?" bad":""}"><div class="rl">${cur.bad?"Problem detected":"Result"}</div><div class="rb">${cur.fin}</div><div class="rs">${cur.bits}</div></div>`;
+ $("insp").innerHTML=h;$("sno").textContent=`STEP ${i+1} / ${S.length}`;
+ document.querySelectorAll(".ti").forEach((t,k)=>{t.classList.toggle("dn",k<i);t.classList.toggle("cur",k==i)});
+ const ct=$("tl").children[i];if(ct){const tl=$("tl");tl.scrollTop=ct.offsetTop-tl.clientHeight/2}
+ $("scr").value=i;$("scl").textContent=`${i+1} / ${S.length}`;
+ $("first").disabled=$("prev").disabled=i==0;$("nxt").disabled=$("last").disabled=last;
+ if(last){playing=false;clearTimeout(timer);setIcon()}
+}
+function setIcon(){$("pico").innerHTML=playing?'<path d="M3 2h4v12H3zM9 2h4v12H9z"/>':'<path d="M4 2v12l10-6z"/>'}
+function tick(){if(!playing)return;if(idx+1>=S.length){playing=false;setIcon();return}render(idx+1);if(playing)timer=setTimeout(tick,+$("spd").value)}
+function play(){if(!S.length)return;if(playing){playing=false;clearTimeout(timer)}else{if(idx>=S.length-1)render(0);playing=true;timer=setTimeout(tick,350)}setIcon()}
+const stopAnd=f=>()=>{playing=false;clearTimeout(timer);setIcon();f()};
+$("play").onclick=play;
+$("nxt").onclick=stopAnd(()=>idx+1<S.length&&render(idx+1));
+$("prev").onclick=stopAnd(()=>idx>0&&render(idx-1));
+$("first").onclick=stopAnd(()=>render(0));
+$("last").onclick=stopAnd(()=>render(S.length-1));
+$("scr").oninput=stopAnd(()=>render(+$("scr").value));
+document.addEventListener("keydown",e=>{if(!S.length||/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;
+ if(e.key==" "){e.preventDefault();play()}else if(e.key=="ArrowRight")$("nxt").click();else if(e.key=="ArrowLeft")$("prev").click()});
+function run(){
+ const m=MODES[mode],e=$("err");e.classList.remove("on");
+ const I={},bad=t=>{e.textContent=t;e.classList.add("on")};
+ for(const f of m.f){const v=$(f).value.trim();if(!/^-?\d+$/.test(v))return bad(`Enter a whole number for ${f=="NEW"?"NEWITEM":f}.`);
+  I[f]=+v;if(Math.abs(I[f])>99999)return bad("Keep values between −99999 and 99999.")}
+ const mv=$("memv").value.split(/[\s,]+/).filter(Boolean);
+ if(mv.length!=16||mv.some(x=>!/^-?\d+$/.test(x)))return bad("Memory needs exactly 16 whole numbers separated by commas.");
+ const mem={};ADDR.forEach((a,k)=>mem[a]=+mv[k]);
+ reset();
+ try{cur=GROUPS[0][1].includes(mode)?addrMode(mode,I,mem):GROUPS[1][1].includes(mode)?stack(mode,I,mem):sub(mode,I,mem)}catch(x){return bad(String(x))}
+ S=cur.S;$("algo").textContent=cur.algo;
+ $("tl").innerHTML=S.map((s,k)=>`<button class="ti${s.w?" w":""}" data-k="${k}"><span class="dot">${k+1}</span><span>${s.p}</span></button>`).join("");
+ document.querySelectorAll(".ti").forEach(t=>t.onclick=stopAnd(()=>render(+t.dataset.k)));
+ ["first","prev","play","nxt","last","scr"].forEach(b=>$(b).disabled=false);$("scr").max=S.length-1;
+ render(0);playing=true;setIcon();timer=setTimeout(tick,+$("spd").value);
+}
+$("run").onclick=run;
+$("memr").onclick=()=>{$("memv").value=DEFMEM.join(", ");if(!S.length)reset()};
+$("memv").oninput=()=>{if(!S.length)reset()};
+pick("idx");
+</script></body></html>
